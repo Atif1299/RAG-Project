@@ -1,6 +1,7 @@
 """
 RAG Prompts
 
+
 This module contains prompt templates for the RAG system,
 optimized for different languages and query types.
 """
