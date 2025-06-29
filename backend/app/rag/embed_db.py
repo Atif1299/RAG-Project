@@ -324,48 +324,12 @@ class EmbedStore:
             except Exception as flush_error:
                 logger.warning(f"Could not flush collection: {str(flush_error)}")
 
-            # Get final count after flush
-            try:
-                final_count = collection.num_entities
-                logger.info(f"Final entity count after flush: {final_count}")
-            except Exception as count_error:
-                logger.warning(f"Could not get final count: {str(count_error)}")
-                final_count = initial_count
-
-            actual_deleted = initial_count - final_count
-
-            logger.info(f"Deletion summary: Initial count: {initial_count}, Final count: {final_count}, Actual deleted: {actual_deleted}")
-
-            # Use the delete_count from successful operations if actual_deleted is 0 but we had successful deletions
-            if actual_deleted == 0 and deleted_count > 0:
-                logger.info(f"Using delete_count from operations: {deleted_count}")
-                actual_deleted = deleted_count
-
-            if actual_deleted > 0:
-                logger.info(f"Successfully deleted {actual_deleted} vectors for filename: {filename}")
-                return {
-                    "success": True,
-                    "message": f"Successfully deleted {actual_deleted} vectors for filename: {filename}",
-                    "deleted_count": actual_deleted,
-                    "initial_count": initial_count,
-                    "final_count": final_count,
-                    "successful_filters": successful_filters
-                }
-            else:
-                logger.warning(f"No vectors found to delete for filename: {filename}")
-                return {
-                    "success": False,
-                    "message": f"No vectors found for filename: {filename}",
-                    "deleted_count": 0,
-                    "initial_count": initial_count,
-                    "final_count": final_count,
-                    "successful_filters": successful_filters
-                }
+            logger.info(f"Successfully stored {len(doc_ids)} documents in vector database")
+            return doc_ids
 
         except Exception as e:
             logger.error(f"Error storing documents: {str(e)}")
             raise
-
 
     def search_similar(self, query: str, top_k: int = 4,
                       filter: Optional[Dict[str, Any]] = None) -> List[Document]:
@@ -827,8 +791,6 @@ def delete_vectors_by_filename(filename: str, collection_name: str = "my_collect
             "message": f"Error deleting vectors: {str(e)}",
             "deleted_count": 0
         }
-
-
 
 def embed_documents_from_folder(folder_path: str, file_names: List[str], collection_name: str = "my_collection",
                                model_name: str = "Snowflake/snowflake-arctic-embed-l-v2.0",

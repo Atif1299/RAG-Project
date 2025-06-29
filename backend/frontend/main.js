@@ -250,35 +250,83 @@ document.addEventListener('DOMContentLoaded', () => {
       // Handle the response
       let message = result.detail
       
-      // If there are skipped files, show them in the file preview area instead of alert
-      if (result.skipped_files && result.skipped_files.length > 0) {
+      // Check if all documents were duplicates (uploaded_count is 0)
+      if (result.uploaded_count === 0 && result.skipped_files && result.skipped_files.length > 0) {
+        // All documents were duplicates - show specific message
+        const duplicateFilesList = result.skipped_files.map(file => 
+          `• ${file.filename}: ${file.reason}`
+        ).join('\n')
+        
+        filePreviewArea.innerHTML = `
+          <div style="text-align: center; padding: 20px;">
+            <p style="color: orange; font-size: 1.1em; margin-bottom: 15px;">
+              <strong>Document already exists!</strong>
+            </p>
+            <p style="color: var(--secondary-text-color); margin-bottom: 15px;">
+              The following document(s) have already been processed and are available in your documents list:
+            </p>
+            <pre style="text-align: left; color: orange; font-size: 0.9em; margin: 10px; padding: 15px; background: rgba(255, 165, 0, 0.1); border-radius: 5px; max-height: 200px; overflow-y: auto;">${duplicateFilesList}</pre>
+            <p style="color: var(--secondary-text-color); font-size: 0.9em; margin-top: 15px;">
+              You can view and query these documents from the Documents tab.
+            </p>
+          </div>
+        `
+        
+        // Don't show progress bar for duplicates, just refresh documents table after a delay
+        setTimeout(() => {
+          switchToView('documents-view')
+          renderDocumentsTable()
+        }, 3000)
+        
+      } else if (result.skipped_files && result.skipped_files.length > 0) {
+        // Some files were uploaded, some were skipped
         const skippedFilesList = result.skipped_files.map(file => 
           `• ${file.filename}: ${file.reason}`
         ).join('\n')
         
-        // Show skipped files info in the file preview area
-        filePreviewArea.innerHTML = `<p style="text-align: center; color: var(--secondary-text-color);">Upload Results:</p><p style="text-align: center; color: var(--secondary-text-color);">${message}</p><p style="text-align: center; color: orange;">Skipped Files:</p><pre style="text-align: left; color: orange; font-size: 0.9em; margin: 10px; padding: 10px; background: rgba(255, 165, 0, 0.1); border-radius: 5px;">${skippedFilesList}</pre>`
+        // Show mixed results in the file preview area
+        filePreviewArea.innerHTML = `
+          <div style="text-align: center; padding: 20px;">
+            <p style="color: var(--secondary-text-color); margin-bottom: 15px;">
+              <strong>Upload Results:</strong>
+            </p>
+            <p style="color: var(--secondary-text-color); margin-bottom: 15px;">
+              ${message}
+            </p>
+            <p style="color: orange; margin-bottom: 10px;">
+              <strong>Skipped Files (already exist):</strong>
+            </p>
+            <pre style="text-align: left; color: orange; font-size: 0.9em; margin: 10px; padding: 10px; background: rgba(255, 165, 0, 0.1); border-radius: 5px;">${skippedFilesList}</pre>
+          </div>
+        `
+        
+        // Show progress bar for the uploaded files
+        if (result.uploaded_count > 0) {
+          setTimeout(() => {
+            filePreviewArea.innerHTML = ''
+            progressBarContainer.style.display = 'block'
+            progressBar.style.width = '0%'
+            progressBarLabel.textContent = 'Processing document...'
+            progressBarStatus.textContent = 'Starting...'
+            startProgressPolling()
+          }, 2000)
+        }
+        
       } else {
-        // Show success message in the file preview area
+        // All files uploaded successfully
         filePreviewArea.innerHTML = `<p style="text-align: center; color: var(--secondary-text-color);">${message}</p>`
+        
+        // Show progress bar for processing
+        setTimeout(() => {
+          filePreviewArea.innerHTML = ''
+          progressBarContainer.style.display = 'block'
+          progressBar.style.width = '0%'
+          progressBarLabel.textContent = 'Processing document...'
+          progressBarStatus.textContent = 'Starting...'
+          startProgressPolling()
+        }, 1000)
       }
 
-      // If documents were uploaded, show progress bar and start polling
-      if (result.uploaded_count > 0) {
-        // Clear file preview and show progress bar immediately
-        filePreviewArea.innerHTML = ''
-        progressBarContainer.style.display = 'block'
-        progressBar.style.width = '0%'
-        progressBarLabel.textContent = 'Processing document...'
-        progressBarStatus.textContent = 'Starting...'
-        startProgressPolling()
-      } else {
-        // No documents uploaded, just refresh the documents table and go back
-        setTimeout(() => {
-          switchToView('documents-view')
-          renderDocumentsTable()
-        }, 2000)
-      }
     } catch (error) {
       console.error('Upload error:', error)
       filePreviewArea.innerHTML = `<p style="text-align: center; color: red;">Error: ${error.message}</p>`
