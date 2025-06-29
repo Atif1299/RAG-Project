@@ -250,21 +250,22 @@ document.addEventListener('DOMContentLoaded', () => {
       // Handle the response
       let message = result.detail
       
-      // If there are skipped files, show them to the user
+      // If there are skipped files, show them in the file preview area instead of alert
       if (result.skipped_files && result.skipped_files.length > 0) {
         const skippedFilesList = result.skipped_files.map(file => 
           `• ${file.filename}: ${file.reason}`
         ).join('\n')
         
-        // Show alert with detailed information about skipped files
-        alert(`Upload Results:\n\n${message}\n\nSkipped Files:\n${skippedFilesList}`)
+        // Show skipped files info in the file preview area
+        filePreviewArea.innerHTML = `<p style="text-align: center; color: var(--secondary-text-color);">Upload Results:</p><p style="text-align: center; color: var(--secondary-text-color);">${message}</p><p style="text-align: center; color: orange;">Skipped Files:</p><pre style="text-align: left; color: orange; font-size: 0.9em; margin: 10px; padding: 10px; background: rgba(255, 165, 0, 0.1); border-radius: 5px;">${skippedFilesList}</pre>`
       } else {
-        // Show success message
-        alert(message)
+        // Show success message in the file preview area
+        filePreviewArea.innerHTML = `<p style="text-align: center; color: var(--secondary-text-color);">${message}</p>`
       }
 
       // If documents were uploaded, show progress bar and start polling
       if (result.uploaded_count > 0) {
+        // Clear file preview and show progress bar immediately
         filePreviewArea.innerHTML = ''
         progressBarContainer.style.display = 'block'
         progressBar.style.width = '0%'
@@ -273,7 +274,6 @@ document.addEventListener('DOMContentLoaded', () => {
         startProgressPolling()
       } else {
         // No documents uploaded, just refresh the documents table and go back
-        filePreviewArea.innerHTML = '<p style="text-align: center; color: var(--secondary-text-color);">No documents uploaded.</p>'
         setTimeout(() => {
           switchToView('documents-view')
           renderDocumentsTable()

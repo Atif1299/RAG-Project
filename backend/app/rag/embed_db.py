@@ -317,11 +317,50 @@ class EmbedStore:
                 collection = Collection(self.collection_name)
                 collection.flush()
                 logger.info(f"Successfully flushed collection {self.collection_name}")
+                
+                # Wait a moment for flush to complete
+                time.sleep(0.5)
+                
             except Exception as flush_error:
                 logger.warning(f"Could not flush collection: {str(flush_error)}")
-            
-            logger.info(f"Successfully stored {len(documents)} chunks with IDs: {doc_ids[:5]}...")
-            return doc_ids
+
+            # Get final count after flush
+            try:
+                final_count = collection.num_entities
+                logger.info(f"Final entity count after flush: {final_count}")
+            except Exception as count_error:
+                logger.warning(f"Could not get final count: {str(count_error)}")
+                final_count = initial_count
+
+            actual_deleted = initial_count - final_count
+
+            logger.info(f"Deletion summary: Initial count: {initial_count}, Final count: {final_count}, Actual deleted: {actual_deleted}")
+
+            # Use the delete_count from successful operations if actual_deleted is 0 but we had successful deletions
+            if actual_deleted == 0 and deleted_count > 0:
+                logger.info(f"Using delete_count from operations: {deleted_count}")
+                actual_deleted = deleted_count
+
+            if actual_deleted > 0:
+                logger.info(f"Successfully deleted {actual_deleted} vectors for filename: {filename}")
+                return {
+                    "success": True,
+                    "message": f"Successfully deleted {actual_deleted} vectors for filename: {filename}",
+                    "deleted_count": actual_deleted,
+                    "initial_count": initial_count,
+                    "final_count": final_count,
+                    "successful_filters": successful_filters
+                }
+            else:
+                logger.warning(f"No vectors found to delete for filename: {filename}")
+                return {
+                    "success": False,
+                    "message": f"No vectors found for filename: {filename}",
+                    "deleted_count": 0,
+                    "initial_count": initial_count,
+                    "final_count": final_count,
+                    "successful_filters": successful_filters
+                }
 
         except Exception as e:
             logger.error(f"Error storing documents: {str(e)}")
@@ -614,13 +653,32 @@ class EmbedStore:
                     logger.error(f"Manual search and delete approach failed: {str(manual_error)}")
 
             # Flush the collection to ensure deletions are persisted
-            collection.flush()
+            try:
+                collection.flush()
+                logger.info(f"Successfully flushed collection {self.collection_name}")
+                
+                # Wait a moment for flush to complete
+                time.sleep(0.5)
+                
+            except Exception as flush_error:
+                logger.warning(f"Could not flush collection: {str(flush_error)}")
 
-            # Get final count
-            final_count = collection.num_entities
+            # Get final count after flush
+            try:
+                final_count = collection.num_entities
+                logger.info(f"Final entity count after flush: {final_count}")
+            except Exception as count_error:
+                logger.warning(f"Could not get final count: {str(count_error)}")
+                final_count = initial_count
+
             actual_deleted = initial_count - final_count
 
             logger.info(f"Deletion summary: Initial count: {initial_count}, Final count: {final_count}, Actual deleted: {actual_deleted}")
+
+            # Use the delete_count from successful operations if actual_deleted is 0 but we had successful deletions
+            if actual_deleted == 0 and deleted_count > 0:
+                logger.info(f"Using delete_count from operations: {deleted_count}")
+                actual_deleted = deleted_count
 
             if actual_deleted > 0:
                 logger.info(f"Successfully deleted {actual_deleted} vectors for filename: {filename}")

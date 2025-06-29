@@ -9,7 +9,7 @@ def initialize_pipeline():
         model_name="tgi",
         base_url="https://m0vtsu71q6nl17e8.us-east-1.aws.endpoints.huggingface.cloud/v1/",  # Note new default URL
         api_key=os.environ.get("HF_API_KEY"),  # Will use HF_API_TOKEN or OPENAI_API_KEY if not provided
-        max_tokens=1024,  # New default is larger
+        max_tokens=712,  # New default is larger
         # Additional parameters you may want to configure:
         dense_top_k=15,    # Number of dense retrieval results
         sparse_weight=0.3, # Weight for BM25 scores (0.0-1.0)
