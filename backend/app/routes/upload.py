@@ -178,6 +178,7 @@ async def upload_documents(
         })
 
     uploaded_count, saved_filenames = 0, []
+    skipped_files = []
     folder_path = f"storage/documents/{user_id}"
     metadata_file_path = os.path.join(folder_path, "documents_metadata.json")
 
@@ -188,6 +189,41 @@ async def upload_documents(
         metadata_list = []
 
     for file in documents[:remaining_slots]:
+        filename = file.filename
+        
+        # Check if file already exists in file system
+        file_path = os.path.join(folder_path, filename)
+        file_exists = os.path.exists(file_path)
+        
+        # Check if file exists in metadata (was previously uploaded)
+        file_in_metadata = any(doc.get("documentname") == filename for doc in metadata_list)
+        
+        # Check if vectors exist in database for this filename
+        vectors_exist = False
+        try:
+            verification_result = verify_vectors_for_filename(
+                filename=filename,
+                collection_name="my_collection",
+                model_name="Snowflake/snowflake-arctic-embed-l-v2.0",
+                milvus_host="127.0.0.1",
+                milvus_port=19530
+            )
+            vectors_exist = verification_result.get("matching_documents", 0) > 0
+        except Exception as e:
+            print(f"Error checking vectors for {filename}: {str(e)}")
+            # If we can't check vectors, assume they don't exist to be safe
+        
+        # Determine if this is a duplicate
+        is_duplicate = file_exists and file_in_metadata and vectors_exist
+        
+        if is_duplicate:
+            print(f"Skipping duplicate document: {filename} (already exists and processed)")
+            skipped_files.append({
+                "filename": filename,
+                "reason": "Document already exists and has been processed"
+            })
+            continue
+        
         try:
             save_document(user_id, file)
             uploaded_count += 1
@@ -214,6 +250,10 @@ async def upload_documents(
 
         except Exception as e:
             print(f"Error uploading {file.filename}: {str(e)}")
+            skipped_files.append({
+                "filename": file.filename,
+                "reason": f"Upload error: {str(e)}"
+            })
             pass
 
     if uploaded_count > 0:
@@ -232,14 +272,21 @@ async def upload_documents(
             milvus_port=19530
         )
 
-    message = f"{uploaded_count} documents will be processed in the background."
-    if uploaded_count < len(documents):
-        message += " (some couldn't be uploaded)"
+    # Prepare response message
+    if uploaded_count > 0 and skipped_files:
+        message = f"{uploaded_count} documents will be processed in the background. {len(skipped_files)} documents were skipped (duplicates or errors)."
+    elif uploaded_count > 0:
+        message = f"{uploaded_count} documents will be processed in the background."
+    elif skipped_files:
+        message = f"No documents uploaded. {len(skipped_files)} documents were skipped (duplicates or errors)."
+    else:
+        message = "No documents were processed."
 
     return {
         "detail": message,
         "uploaded_count": uploaded_count,
-        "current_document_count": current_count + uploaded_count
+        "current_document_count": current_count + uploaded_count,
+        "skipped_files": skipped_files
     }
 
 @router.get("/documents/{user_id}")

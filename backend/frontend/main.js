@@ -247,13 +247,38 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await response.json()
       if (!response.ok) throw new Error(result.detail || 'Upload failed.')
 
-      // Show progress bar and start polling
-      filePreviewArea.innerHTML = ''
-      progressBarContainer.style.display = 'block'
-      progressBar.style.width = '0%'
-      progressBarLabel.textContent = 'Processing document...'
-      progressBarStatus.textContent = 'Starting...'
-      startProgressPolling()
+      // Handle the response
+      let message = result.detail
+      
+      // If there are skipped files, show them to the user
+      if (result.skipped_files && result.skipped_files.length > 0) {
+        const skippedFilesList = result.skipped_files.map(file => 
+          `• ${file.filename}: ${file.reason}`
+        ).join('\n')
+        
+        // Show alert with detailed information about skipped files
+        alert(`Upload Results:\n\n${message}\n\nSkipped Files:\n${skippedFilesList}`)
+      } else {
+        // Show success message
+        alert(message)
+      }
+
+      // If documents were uploaded, show progress bar and start polling
+      if (result.uploaded_count > 0) {
+        filePreviewArea.innerHTML = ''
+        progressBarContainer.style.display = 'block'
+        progressBar.style.width = '0%'
+        progressBarLabel.textContent = 'Processing document...'
+        progressBarStatus.textContent = 'Starting...'
+        startProgressPolling()
+      } else {
+        // No documents uploaded, just refresh the documents table and go back
+        filePreviewArea.innerHTML = '<p style="text-align: center; color: var(--secondary-text-color);">No documents uploaded.</p>'
+        setTimeout(() => {
+          switchToView('documents-view')
+          renderDocumentsTable()
+        }, 2000)
+      }
     } catch (error) {
       console.error('Upload error:', error)
       filePreviewArea.innerHTML = `<p style="text-align: center; color: red;">Error: ${error.message}</p>`
