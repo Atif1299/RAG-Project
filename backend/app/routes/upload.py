@@ -2,7 +2,7 @@ from fastapi import APIRouter, Form, File, UploadFile, HTTPException, Background
 from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse
 from typing import List
 from ..services.document_service import count_user_documents, save_document
-from ..rag.embed_db import embed_documents_from_folder,delete_vectors_by_filename
+from ..rag.embed_db import embed_documents_from_folder, delete_vectors_by_filename, verify_vectors_for_filename
 import json
 import os
 from datetime import datetime
@@ -45,19 +45,74 @@ async def delete_document(user_id: str, filename: str):
                 json.dump(updated_metadata, f, indent=2)
 
         # 3. Delete vectors from Milvus using the actual filename parameter
+        # First, verify vectors exist before deletion
+        verification_before = verify_vectors_for_filename(
+            filename=filename,
+            collection_name="my_collection",
+            model_name="Snowflake/snowflake-arctic-embed-l-v2.0",
+            milvus_host="127.0.0.1",
+            milvus_port=19530
+        )
+        
+        print(f"Vectors before deletion: {verification_before}")
+        
         result = delete_vectors_by_filename(
             filename=filename,  # Use the actual filename parameter, not hardcoded value
             collection_name="my_collection",
-            milvus_host="localhost",
+            model_name="Snowflake/snowflake-arctic-embed-l-v2.0",
+            milvus_host="127.0.0.1",  # Use consistent host configuration
             milvus_port=19530
         )
 
         print(f"Deletion result: {result}")
+        
+        # Verify vectors after deletion
+        verification_after = verify_vectors_for_filename(
+            filename=filename,
+            collection_name="my_collection",
+            model_name="Snowflake/snowflake-arctic-embed-l-v2.0",
+            milvus_host="127.0.0.1",
+            milvus_port=19530
+        )
+        
+        print(f"Vectors after deletion: {verification_after}")
+        
+        # Log the deletion result for debugging
+        if result.get("success"):
+            print(f"Successfully deleted {result.get('deleted_count', 0)} vectors for {filename}")
+        else:
+            print(f"Warning: Vector deletion may have failed: {result.get('message', 'Unknown error')}")
 
         return {"detail": f"Successfully deleted {filename}"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")
+
+
+@router.get("/documents/verify-vectors/{user_id}/{filename}")
+async def verify_document_vectors(user_id: str, filename: str):
+    """
+    Debug endpoint to verify if vectors exist for a specific document.
+    This helps in debugging deletion issues.
+    """
+    try:
+        # Verify vectors before deletion (for debugging)
+        verification_result = verify_vectors_for_filename(
+            filename=filename,
+            collection_name="my_collection",
+            model_name="Snowflake/snowflake-arctic-embed-l-v2.0",
+            milvus_host="127.0.0.1",
+            milvus_port=19530
+        )
+        
+        return {
+            "filename": filename,
+            "verification_result": verification_result,
+            "message": f"Verification complete for {filename}"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error verifying vectors: {str(e)}")
 
 
 @router.get("/documents/download/{user_id}/{filename}")

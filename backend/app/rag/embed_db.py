@@ -523,90 +523,95 @@ class EmbedStore:
             initial_count = collection.num_entities
             logger.info(f"Collection has {initial_count} entities before deletion")
 
-            # Create filter expression for the filename
-            # This assumes the filename is stored in metadata with key 'source' or 'filename'
-            # You may need to adjust this based on how filenames are stored in your metadata
-            filter_expressions = [
-                f'filename == "{filename}"',  # Exact match on filename field
-                f'source like "%{filename}"',  # Source contains filename at end
-                f'source like "%{filename}%"',  # Source contains filename anywhere
-                f'filename like "%{filename}%"'  # Filename contains the target filename
-            ]
-
             deleted_count = 0
             successful_filters = []
 
-            # Try different filter expressions to handle various metadata formats
-            for filter_expr in filter_expressions:
-                try:
-                    logger.info(f"Trying filter expression: {filter_expr}")
+            # Try multiple filter strategies to ensure we catch all vectors
+            filter_strategies = [
+                # Strategy 1: Direct filename match
+                f'filename == "{filename}"',
+                # Strategy 2: Source field contains filename
+                f'source like "%{filename}%"',
+                # Strategy 3: Source field ends with filename
+                f'source like "%{filename}"',
+                # Strategy 4: Any metadata field contains filename
+                f'metadata like "%{filename}%"'
+            ]
 
+            for i, filter_expr in enumerate(filter_strategies):
+                try:
+                    logger.info(f"Trying filter strategy {i+1}: {filter_expr}")
+                    
                     # Delete entities matching the filter
                     delete_result = collection.delete(expr=filter_expr)
-
+                    
                     if hasattr(delete_result, 'delete_count') and delete_result.delete_count > 0:
                         deleted_count += delete_result.delete_count
                         successful_filters.append(filter_expr)
-                        logger.info(f"Deleted {delete_result.delete_count} entities with filter: {filter_expr}")
-
+                        logger.info(f"Strategy {i+1} successful: deleted {delete_result.delete_count} entities")
+                    else:
+                        logger.debug(f"Strategy {i+1} returned no deletions")
+                        
                 except Exception as filter_error:
-                    logger.debug(f"Filter expression '{filter_expr}' failed: {str(filter_error)}")
+                    logger.debug(f"Filter strategy {i+1} failed: {str(filter_error)}")
                     continue
 
-            # If no standard filters worked, try to search and delete manually
+            # If no standard filters worked, try a more aggressive approach
             if deleted_count == 0:
-                logger.info("Standard filters didn't work, attempting manual search and delete")
+                logger.info("Standard filters didn't work, trying manual search and delete approach...")
                 try:
-                    # First, let's see what metadata structure we actually have
-                    logger.info(f"Searching for documents to understand metadata structure...")
-                    sample_docs = self.search_similar(
-                        query="",  # Empty query to get some documents
-                        top_k=5,  # Get a few sample documents
-                    )
-                    
-                    if sample_docs:
-                        logger.info(f"Sample document metadata structure:")
-                        for i, doc in enumerate(sample_docs[:2]):  # Show first 2 docs
-                            logger.info(f"Doc {i+1} metadata: {doc.metadata}")
-                    
-                    # Search for documents with the filename to get their IDs
-                    # This is a fallback method
-                    similar_docs = self.search_similar(
-                        query=filename,  # Using filename as query
+                    # Search for documents with the filename to understand the structure
+                    search_results = self.search_similar(
+                        query=filename,
                         top_k=1000,  # Large number to get all potential matches
                     )
-
-                    # Filter results that actually match the filename
-                    matching_ids = []
-                    for doc in similar_docs:
-                        if doc.metadata:
-                            # Check various metadata fields that might contain the filename
-                            metadata_values = [
-                                doc.metadata.get('source', ''),
-                                doc.metadata.get('filename', ''),
-                                doc.metadata.get('file_name', ''),
-                                str(doc.metadata)  # Check the entire metadata string
-                            ]
-
-                            if any(filename in str(value) for value in metadata_values):
-                                # Try to get the document ID if available
-                                if hasattr(doc, 'id') or 'id' in doc.metadata:
-                                    doc_id = getattr(doc, 'id', doc.metadata.get('id'))
-                                    if doc_id:
-                                        matching_ids.append(doc_id)
-
-                    # Delete by IDs if we found any
-                    if matching_ids:
-                        id_filter = f"id in {matching_ids}"
-                        delete_result = collection.delete(expr=id_filter)
-                        if hasattr(delete_result, 'delete_count'):
-                            deleted_count = delete_result.delete_count
-                            logger.info(f"Manually deleted {deleted_count} entities by ID")
+                    
+                    if search_results:
+                        logger.info(f"Found {len(search_results)} potential documents in search")
+                        
+                        # Log sample metadata to understand structure
+                        for i, doc in enumerate(search_results[:2]):
+                            logger.info(f"Sample doc {i+1} metadata: {doc.metadata}")
+                        
+                        # Try to extract IDs from search results
+                        matching_ids = []
+                        for doc in search_results:
+                            if doc.metadata:
+                                # Check if this document matches our filename
+                                metadata_values = [
+                                    doc.metadata.get('filename', ''),
+                                    doc.metadata.get('source', ''),
+                                    str(doc.metadata.get('source', ''))
+                                ]
+                                
+                                if any(filename in str(value) for value in metadata_values):
+                                    # Try to get document ID
+                                    if hasattr(doc, 'id'):
+                                        matching_ids.append(doc.id)
+                                    elif 'id' in doc.metadata:
+                                        matching_ids.append(doc.metadata['id'])
+                        
+                        if matching_ids:
+                            logger.info(f"Found {len(matching_ids)} matching document IDs")
+                            # Try to delete by IDs
+                            try:
+                                id_list_str = '[' + ', '.join([f'"{id}"' for id in matching_ids]) + ']'
+                                filter_expr = f'id in {id_list_str}'
+                                delete_result = collection.delete(expr=filter_expr)
+                                
+                                if hasattr(delete_result, 'delete_count'):
+                                    deleted_count = delete_result.delete_count
+                                    logger.info(f"Manual ID deletion successful: {deleted_count} entities")
+                                    successful_filters.append("manual_id_deletion")
+                            except Exception as id_error:
+                                logger.error(f"Manual ID deletion failed: {str(id_error)}")
+                        else:
+                            logger.warning("No matching document IDs found in search results")
                     else:
-                        logger.warning(f"No matching documents found for filename: {filename}")
-
+                        logger.warning("No documents found in search results")
+                        
                 except Exception as manual_error:
-                    logger.warning(f"Manual deletion method also failed: {str(manual_error)}")
+                    logger.error(f"Manual search and delete approach failed: {str(manual_error)}")
 
             # Flush the collection to ensure deletions are persisted
             collection.flush()
@@ -614,6 +619,8 @@ class EmbedStore:
             # Get final count
             final_count = collection.num_entities
             actual_deleted = initial_count - final_count
+
+            logger.info(f"Deletion summary: Initial count: {initial_count}, Final count: {final_count}, Actual deleted: {actual_deleted}")
 
             if actual_deleted > 0:
                 logger.info(f"Successfully deleted {actual_deleted} vectors for filename: {filename}")
@@ -632,7 +639,8 @@ class EmbedStore:
                     "message": f"No vectors found for filename: {filename}",
                     "deleted_count": 0,
                     "initial_count": initial_count,
-                    "final_count": final_count
+                    "final_count": final_count,
+                    "successful_filters": successful_filters
                 }
 
         except Exception as e:
@@ -644,6 +652,76 @@ class EmbedStore:
             }
 
 # ========== FUNCTIONS FOR EXTERNAL USE ==========
+
+def verify_vectors_for_filename(filename: str, collection_name: str = "my_collection",
+                               model_name: str = "Snowflake/snowflake-arctic-embed-l-v2.0",
+                               milvus_host: str = "127.0.0.1", milvus_port: int = 19530,
+                               connection_alias: str = "default") -> Dict[str, Any]:
+    """
+    Verify if vectors exist for a specific filename in the Milvus collection.
+    This is useful for debugging deletion issues.
+
+    Args:
+        filename: Name of the file to check
+        collection_name: Name of the Milvus collection to use
+        model_name: Name of the model used for embeddings
+        milvus_host: Host address for Milvus server
+        milvus_port: Port for Milvus server
+        connection_alias: Alias for the Milvus connection
+
+    Returns:
+        Dictionary with verification results
+    """
+    try:
+        logger.info(f"Verifying vectors for filename: {filename}")
+        
+        # Create the EmbedStore
+        embed_store = EmbedStore(
+            collection_name=collection_name,
+            model_name=model_name,
+            milvus_host=milvus_host,
+            milvus_port=milvus_port,
+            connection_alias=connection_alias
+        )
+
+        # Search for documents with the filename
+        search_results = embed_store.search_similar(
+            query=filename,
+            top_k=1000,  # Large number to get all potential matches
+        )
+
+        matching_docs = []
+        for doc in search_results:
+            if doc.metadata:
+                metadata_values = [
+                    doc.metadata.get('filename', ''),
+                    doc.metadata.get('source', ''),
+                    str(doc.metadata.get('source', ''))
+                ]
+                
+                if any(filename in str(value) for value in metadata_values):
+                    matching_docs.append({
+                        'id': getattr(doc, 'id', doc.metadata.get('id', 'unknown')),
+                        'metadata': doc.metadata,
+                        'content_preview': doc.page_content[:100] + '...' if len(doc.page_content) > 100 else doc.page_content
+                    })
+
+        return {
+            "filename": filename,
+            "total_documents_found": len(search_results),
+            "matching_documents": len(matching_docs),
+            "matching_docs_details": matching_docs,
+            "collection_stats": embed_store.get_collection_stats()
+        }
+
+    except Exception as e:
+        logger.error(f"Error verifying vectors for filename: {str(e)}")
+        return {
+            "filename": filename,
+            "error": str(e),
+            "total_documents_found": 0,
+            "matching_documents": 0
+        }
 
 def delete_vectors_by_filename(filename: str, collection_name: str = "my_collection",
                                model_name: str = "Snowflake/snowflake-arctic-embed-l-v2.0",
