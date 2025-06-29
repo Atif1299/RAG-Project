@@ -116,6 +116,7 @@ def qa_answer_prompt(context: str, query: str, query_lang: str = "en") -> str:
 
 إرشادات مهمة:
 - قدّم إجابة مفصلة ومنظمة باللغة العربية الفصحى
+- يجب أن تكون الإجابة كلها بالعربية فقط، لا تخلط بين اللغات
 - إذا لم تتوفر معلومات كافية في المستندات للإجابة عن السؤال، اذكر ذلك بوضوح: "المستندات المتاحة لا تحتوي على معلومات كافية للإجابة على هذا السؤال"
 - إذا كانت المستندات بلغة غير العربية، استخرج المعلومات وأجب بالعربية
 - التزم بالمعلومات المذكورة في المستندات فقط ولا تختلق أي معلومات إضافية
@@ -124,6 +125,10 @@ def qa_answer_prompt(context: str, query: str, query_lang: str = "en") -> str:
 الالتزام الصارم بالمعلومات:
 
 التقيد الصارم والدقيق بالمعلومات المنصوص عليها صراحة في الوثائق. لا تقم بتلفيق أو افتراض أو إضافة أي معلومات خارجية مهما كانت.
+
+
+❗ تنبيه: يجب أن تكون الإجابة باللغة العربية فقط دون استخدام أي كلمات أو جمل بلغات أخرى.
+
 المستندات:
 {context}
 
@@ -141,6 +146,8 @@ Important guidelines:
 
 Provide a balanced response that is neither too brief nor excessively long. Aim for a comprehensive answer that fully addresses the question while staying concise and focused on the most relevant information.
 
+The answer **must be entirely in English only**, do not mix any other language
+
 If there is not enough information in the documents to answer the question, clearly state: "The available documents do not contain sufficient information to answer this question."
 
 If the documents are in a language other than English, extract the relevant information and respond in English.
@@ -150,6 +157,8 @@ Strict Adherence to Information:
 Strictly and precisely adhere to the information explicitly stated in the documents. Do not fabricate, assume, or add any external information whatsoever.
 
 Use natural, conversational language while maintaining accuracy and precision.
+
+❗ Note: The response must be in **English only** — mixing languages is not allowed.
 
 Documents:
 {context}

@@ -527,10 +527,10 @@ class EmbedStore:
             # This assumes the filename is stored in metadata with key 'source' or 'filename'
             # You may need to adjust this based on how filenames are stored in your metadata
             filter_expressions = [
-                f'source == "{filename}"',
-                f'filename == "{filename}"',
-                f'source like "%{filename}%"',  # For cases where source might include path
-                f'filename like "%{filename}%"'
+                f'filename == "{filename}"',  # Exact match on filename field
+                f'source like "%{filename}"',  # Source contains filename at end
+                f'source like "%{filename}%"',  # Source contains filename anywhere
+                f'filename like "%{filename}%"'  # Filename contains the target filename
             ]
 
             deleted_count = 0
@@ -557,6 +557,18 @@ class EmbedStore:
             if deleted_count == 0:
                 logger.info("Standard filters didn't work, attempting manual search and delete")
                 try:
+                    # First, let's see what metadata structure we actually have
+                    logger.info(f"Searching for documents to understand metadata structure...")
+                    sample_docs = self.search_similar(
+                        query="",  # Empty query to get some documents
+                        top_k=5,  # Get a few sample documents
+                    )
+                    
+                    if sample_docs:
+                        logger.info(f"Sample document metadata structure:")
+                        for i, doc in enumerate(sample_docs[:2]):  # Show first 2 docs
+                            logger.info(f"Doc {i+1} metadata: {doc.metadata}")
+                    
                     # Search for documents with the filename to get their IDs
                     # This is a fallback method
                     similar_docs = self.search_similar(
@@ -590,6 +602,8 @@ class EmbedStore:
                         if hasattr(delete_result, 'delete_count'):
                             deleted_count = delete_result.delete_count
                             logger.info(f"Manually deleted {deleted_count} entities by ID")
+                    else:
+                        logger.warning(f"No matching documents found for filename: {filename}")
 
                 except Exception as manual_error:
                     logger.warning(f"Manual deletion method also failed: {str(manual_error)}")

@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   // --- CONFIGURATION ---
-  const API_BASE_URL = 'http://localhost:8000/api/'
+  const API_BASE_URL = 'http://34.47.191.25:8000/api/'
   const USER_ID = 'user_123456'
 
   // --- DOM ELEMENT REFERENCES ---
