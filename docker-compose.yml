@@ -1,24 +1,4 @@
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: rag-backend
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-    depends_on:
-      - standalone
-    networks:
-      - milvus
-  
-  milvus:
-    image: milvusdb/milvus:v2.3.9
-    container_name: milvus
-    networks:
-      - milvus
-
   etcd:
     container_name: milvus-etcd
     image: quay.io/coreos/etcd:v3.5.5
@@ -79,5 +59,5 @@ services:
       - 'minio'
 
 networks:
-  milvus:
-    driver: bridge
+  default:
+    name: milvus
