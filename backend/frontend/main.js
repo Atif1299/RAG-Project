@@ -20,6 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const queryResultsContainer = document.getElementById(
     'query-results-container'
   )
+  const progressBarContainer = document.getElementById('progress-bar-container')
+  const progressBar = document.getElementById('progress-bar')
+  const progressBarLabel = document.getElementById('progress-bar-label')
+  const progressBarStatus = document.getElementById('progress-bar-status')
+  let progressPollingInterval = null
 
   // --- STATE MANAGEMENT ---
   let filesToUpload = []
@@ -228,6 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadBtn.textContent = 'Uploading...'
     filePreviewArea.innerHTML =
       '<p style="text-align: center; color: var(--secondary-text-color);">Upload in progress...</p>'
+    progressBarContainer.style.display = 'none'
 
     const formData = new FormData()
     formData.append('user_id', USER_ID)
@@ -241,22 +247,59 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await response.json()
       if (!response.ok) throw new Error(result.detail || 'Upload failed.')
 
-      filePreviewArea.innerHTML = `<p style="text-align: center; color: green;">${
-        result.detail || 'Upload complete!'
-      }</p>`
-      setTimeout(() => {
-        filesToUpload = []
-        renderFilePreviews()
-        switchToView('documents-view')
-        renderDocumentsTable()
-      }, 2000)
+      // Show progress bar and start polling
+      filePreviewArea.innerHTML = ''
+      progressBarContainer.style.display = 'block'
+      progressBar.style.width = '0%'
+      progressBarLabel.textContent = 'Processing document...'
+      progressBarStatus.textContent = 'Starting...'
+      startProgressPolling()
     } catch (error) {
       console.error('Upload error:', error)
       filePreviewArea.innerHTML = `<p style="text-align: center; color: red;">Error: ${error.message}</p>`
+      progressBarContainer.style.display = 'none'
     } finally {
       uploadBtn.disabled = false
       uploadBtn.textContent = 'Upload Document'
     }
+  }
+
+  function startProgressPolling() {
+    if (progressPollingInterval) clearInterval(progressPollingInterval)
+    progressPollingInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}progress/${USER_ID}`)
+        if (!response.ok) throw new Error('No progress info')
+        const data = await response.json()
+        // Calculate percent
+        let percent = 0
+        if (data.total_chunks && data.total_chunks > 0) {
+          percent = Math.floor((data.processed_chunks / data.total_chunks) * 100)
+        }
+        if (data.status === 'completed') percent = 100
+        if (data.status === 'failed') percent = 100
+        progressBar.style.width = percent + '%'
+        progressBarStatus.textContent =
+          data.status === 'completed'
+            ? 'Processing complete! Redirecting...'
+            : data.status === 'failed'
+            ? 'Processing failed.'
+            : `Processed ${data.processed_chunks || 0} of ${data.total_chunks || '?'} chunks...`
+        if (data.status === 'completed') {
+          setTimeout(() => {
+            progressBarContainer.style.display = 'none'
+            switchToView('query-view')
+            clearInterval(progressPollingInterval)
+            renderDocumentsTable()
+          }, 1200)
+        } else if (data.status === 'failed') {
+          progressBarLabel.textContent = 'Processing failed.'
+          clearInterval(progressPollingInterval)
+        }
+      } catch (e) {
+        // If no progress info, just keep polling
+      }
+    }, 1000)
   }
 
   async function handleQuerySubmit(event) {

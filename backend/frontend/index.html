@@ -239,6 +239,13 @@
                             <p>or click to browse (PDF, DOCX, TXT, etc.)</p>
                         </div>
                         <div id="file-preview-area"></div>
+                        <div id="progress-bar-container" style="display:none; margin-top: 2rem;">
+                            <div id="progress-bar-label" style="margin-bottom: 0.5rem; text-align:center;">Processing document...</div>
+                            <div style="background:#eee; border-radius:8px; height:18px; width:100%; overflow:hidden;">
+                                <div id="progress-bar" style="height:100%; width:0%; background:#2563eb; transition:width 0.5s;"></div>
+                            </div>
+                            <div id="progress-bar-status" style="margin-top:0.5rem; text-align:center; font-size:0.95em; color:#555;"></div>
+                        </div>
                     </div>
                     <div class="upload-actions">
                         <button id="cancel-upload-btn" class="btn btn-secondary">Cancel</button>

@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import upload, query
+from .routes import progress
 from .config import setup_environment, FRONTEND_PATH
 
 app = FastAPI()
@@ -23,6 +24,7 @@ setup_environment()
 # Include the API routers
 app.include_router(upload.router, prefix="/api")
 app.include_router(query.router, prefix="/api")
+app.include_router(progress.router, prefix="/api")
 
 # Mount the front-end static files
 app.mount("/", StaticFiles(directory=FRONTEND_PATH, html=True), name="frontend")

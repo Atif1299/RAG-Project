@@ -17,6 +17,7 @@ from pymilvus import Collection, connections, utility
 
 # Import necessary functions from loader
 from .loader import get_document_chunks, ContextualDocumentSplitter
+from ..services.progress_service import progress_service
 
 # Removed RTL handling code
 
@@ -677,28 +678,17 @@ def embed_documents_from_folder(folder_path: str, file_names: List[str], collect
     """
     Retrieves document chunks from specific files in a folder using loader's get_document_chunks method,
     embeds them, and stores them in a Milvus vector database.
-
-    This function can be imported and used in other files to process selected documents.
-
-    Args:
-        folder_path: Path to the folder containing documents to process
-        file_names: List of file names within the folder to process
-        collection_name: Name of the Milvus collection to use
-        model_name: Name of the model to use for embeddings
-        milvus_host: Host address for Milvus server
-        milvus_port: Port for Milvus server
-        connection_alias: Alias for the Milvus connection (should be unique if multiple instances are created)
-
-    Returns:
-        List of IDs of the stored document chunks
     """
     try:
+        # Extract user_id from folder_path (assumes .../documents/{user_id})
+        user_id = os.path.basename(folder_path)
+        progress_service.start_processing(user_id, file_names, len(file_names))
+
         logger.info(f"Embedding documents from folder: {folder_path}")
         logger.info(f"Selected files: {file_names}")
         logger.info(f"Using collection: {collection_name} with model: {model_name}")
         logger.info(f"Connecting to Milvus at {milvus_host}:{milvus_port}")
 
-        # Create the EmbedStore with the specified parameters
         embed_store = EmbedStore(
             collection_name=collection_name,
             model_name=model_name,
@@ -707,27 +697,39 @@ def embed_documents_from_folder(folder_path: str, file_names: List[str], collect
             connection_alias=connection_alias
         )
 
-        # Get document chunks using loader's get_document_chunks method with the folder path and file names
-        print("In embed file")
         document_chunks = get_document_chunks(input_source=folder_path, filenames=file_names)
-        print("Still In embed file.")
         if not document_chunks:
             logger.warning(f"No document chunks retrieved from files in: {folder_path}")
+            progress_service.complete_processing(user_id, success=False, error="No document chunks found.")
             return []
 
         logger.info(f"Retrieved {len(document_chunks)} document chunks from specified files")
+        progress_service.update_file_progress(user_id, current_file=','.join(file_names), processed_files=len(file_names), total_chunks=len(document_chunks))
 
-        # Store the document chunks
-        document_ids = embed_store.store_documents(document_chunks)
-
-        # Get and display collection statistics
+        # Store the document chunks in batches and update progress
+        batch_size = 8
+        total_chunks = len(document_chunks)
+        processed_chunks = 0
+        document_ids = []
+        for i in range(0, total_chunks, batch_size):
+            batch = document_chunks[i:i+batch_size]
+            ids = embed_store.store_documents(batch)
+            document_ids.extend(ids)
+            processed_chunks += len(batch)
+            progress_service.update_chunk_progress(user_id, processed_chunks=processed_chunks, current_chunk=processed_chunks)
+        
         stats = embed_store.get_collection_stats()
         logger.info(f"Collection statistics: {stats}")
-
-        return document_ids  # Fixed: Make sure to return document_ids
+        progress_service.complete_processing(user_id, success=True)
+        return document_ids
 
     except Exception as e:
         logger.error(f"Error in embed_documents_from_folder: {str(e)}")
+        try:
+            user_id = os.path.basename(folder_path)
+            progress_service.complete_processing(user_id, success=False, error=str(e))
+        except Exception:
+            pass
         raise
 
 def find_similar_chunks(query: str, collection_name: str = "my_collection",
