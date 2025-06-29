@@ -311,6 +311,15 @@ class EmbedStore:
 
             # Add documents to Milvus vector store
             doc_ids = self.vector_store.add_documents(documents=documents, ids=ids)
+            
+            # Flush the collection to ensure data is persisted
+            try:
+                collection = Collection(self.collection_name)
+                collection.flush()
+                logger.info(f"Successfully flushed collection {self.collection_name}")
+            except Exception as flush_error:
+                logger.warning(f"Could not flush collection: {str(flush_error)}")
+            
             logger.info(f"Successfully stored {len(documents)} chunks with IDs: {doc_ids[:5]}...")
             return doc_ids
 
