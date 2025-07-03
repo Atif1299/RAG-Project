@@ -332,7 +332,7 @@ class EmbedStore:
             raise
 
     def search_similar(self, query: str, top_k: int = 4,
-                      filter: Optional[Dict[str, Any]] = None) -> List[Document]:
+                       filter: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         Find documents similar to the provided query.
 
@@ -526,19 +526,19 @@ class EmbedStore:
             initial_count = collection.num_entities
             logger.info(f"Collection has {initial_count} entities before deletion")
 
+            # Initialize progress for deletion
+            progress_service.start_deletion_progress(
+                user_id="user_123456", # Assuming a fixed user_id for now, or pass dynamically
+                filename=filename,
+                total_chunks=initial_count
+            )
+
             deleted_count = 0
             successful_filters = []
 
-            # Try multiple filter strategies to ensure we catch all vectors
+            # Use direct filename match, as other filters might not be supported for deletion
             filter_strategies = [
-                # Strategy 1: Direct filename match
-                f'filename == "{filename}"',
-                # Strategy 2: Source field contains filename
-                f'source like "%{filename}%"',
-                # Strategy 3: Source field ends with filename
-                f'source like "%{filename}"',
-                # Strategy 4: Any metadata field contains filename
-                f'metadata like "%{filename}%"'
+                f'filename == "{filename}"'
             ]
 
             for i, filter_expr in enumerate(filter_strategies):
@@ -552,6 +552,11 @@ class EmbedStore:
                         deleted_count += delete_result.delete_count
                         successful_filters.append(filter_expr)
                         logger.info(f"Strategy {i+1} successful: deleted {delete_result.delete_count} entities")
+                        # Update progress after successful deletion
+                        progress_service.update_deletion_progress(
+                            user_id="user_123456",
+                            processed_chunks=deleted_count
+                        )
                     else:
                         logger.debug(f"Strategy {i+1} returned no deletions")
                         
@@ -606,6 +611,11 @@ class EmbedStore:
                                     deleted_count = delete_result.delete_count
                                     logger.info(f"Manual ID deletion successful: {deleted_count} entities")
                                     successful_filters.append("manual_id_deletion")
+                                    # Update progress after manual deletion
+                                    progress_service.update_deletion_progress(
+                                        user_id="user_123456",
+                                        processed_chunks=deleted_count
+                                    )
                             except Exception as id_error:
                                 logger.error(f"Manual ID deletion failed: {str(id_error)}")
                         else:
@@ -646,6 +656,11 @@ class EmbedStore:
 
             if actual_deleted > 0:
                 logger.info(f"Successfully deleted {actual_deleted} vectors for filename: {filename}")
+                progress_service.complete_processing(
+                    user_id="user_123456",
+                    success=True,
+                    error=None
+                )
                 return {
                     "success": True,
                     "message": f"Successfully deleted {actual_deleted} vectors for filename: {filename}",
@@ -656,6 +671,11 @@ class EmbedStore:
                 }
             else:
                 logger.warning(f"No vectors found to delete for filename: {filename}")
+                progress_service.complete_processing(
+                    user_id="user_123456",
+                    success=False,
+                    error=f"No vectors found to delete for '{filename}'."
+                )
                 return {
                     "success": False,
                     "message": f"No vectors found for filename: {filename}",
@@ -667,6 +687,11 @@ class EmbedStore:
 
         except Exception as e:
             logger.error(f"Error deleting vectors by filename: {str(e)}")
+            progress_service.complete_processing(
+                user_id="user_123456",
+                success=False,
+                error=f"Error deleting '{filename}': {str(e)}"
+            )
             return {
                 "success": False,
                 "message": f"Error deleting vectors: {str(e)}",

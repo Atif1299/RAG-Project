@@ -113,7 +113,7 @@ def segment_into_sentences(text: str, lang: str) -> List[str]:
         if len(segments) % 2 != 0:
             sentences.append(segments[-1])
         return [s.strip() for s in sentences if s.strip()]
-
+        
     else:
         return [s.strip() for s in re.split(r'[\n\.!?]+', text) if s.strip()]
 
@@ -471,8 +471,8 @@ class SemanticTextSplitter(TextSplitter):
         try:
             # Get end of current chunk (limit sentence splitting)
             current_sentences = segment_into_sentences(current_chunk, lang)
-            if len(current_sentences) > 3:
-                bridge_end = current_sentences[-3:]
+            if len(current_sentences) > 2: # Reduced from 3
+                bridge_end = current_sentences[-2:] # Reduced from 3
             else:
                 bridge_end = current_sentences
 
@@ -481,7 +481,7 @@ class SemanticTextSplitter(TextSplitter):
                 bridge_start = [next_segment]
             else:
                 next_sentences = segment_into_sentences(next_segment, lang)
-                bridge_start = next_sentences[:min(3, len(next_sentences))]
+                bridge_start = next_sentences[:min(2, len(next_sentences))] # Reduced from 3
 
             # Create bridge if meaningful
             bridge_text = f"{self.separator.join(bridge_end)}{self.separator}{self.separator.join(bridge_start)}"

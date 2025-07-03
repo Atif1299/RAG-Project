@@ -126,6 +126,7 @@ def qa_answer_prompt(context: str, query: str, query_lang: str = "en") -> str:
 - التزم بالمعلومات المذكورة في المستندات فقط ولا تختلق أي معلومات إضافية
 - اذكر من أي مستند حصلت على المعلومات
 - تجاهل أي أخطاء تقنية أو تنسيقية في المستندات وركز على المحتوى
+- إذا كان السؤال يتضمن مقارنة بين مفهومين أو مصطلحين، تأكد من البحث عن كل منهما في المستندات وتقديم تعريف لكل منهما إذا كان متوفرًا
 
 **أجب فقط باستخدام المعلومات المتوفرة في النصوص المسترجعة. لا تضف معلومات من خارج المستند.**
 
@@ -187,12 +188,12 @@ def detect_language(text: str) -> str:
     Returns:
         Language code ("en" or "ar")
     """
-    # Simple detection based on Arabic characters
-    arabic_chars = [chr(code) for code in range(0x0600, 0x06FF)]
+    # Enhanced detection based on Arabic characters
+    arabic_chars = [chr(code) for code in range(0x0600, 0x06FF)] + [chr(code) for code in range(0x0750, 0x077F)] + [chr(code) for code in range(0x08A0, 0x08FF)]
     arabic_count = sum(1 for char in text if char in arabic_chars)
 
-    # If more than 10% of characters are Arabic, consider it Arabic
-    if arabic_count / max(len(text), 1) > 0.1:
+    # Lower threshold for Arabic detection (5% instead of 10%)
+    if arabic_count / max(len(text), 1) > 0.05:
         return "ar"
     else:
         return "en"
@@ -210,16 +211,22 @@ def enhance_query_prompt(query: str, query_lang: str = "en") -> str:
         Complete prompt string for query enhancement
     """
     if query_lang == "ar":
-        return f"""أنت مساعد ذكي متخصص في تحسين وتوسيع الاستعلامات البحثية.
+        return f"""أنت مساعد ذكي متخصص في تحسين وتوسيع الاستعلامات البحثية باللغة العربية.
 
 الاستعلام الأصلي هو: "{query}"
 
 قم بتوسيع هذا الاستعلام لتحسين نتائج البحث من خلال:
-1. إضافة مرادفات أو مصطلحات بديلة
-2. تحديد المفاهيم الرئيسية والتعبير عنها بطرق مختلفة
-3. إضافة سياق إضافي قد يكون مفيدًا للبحث
+1. إضافة مرادفات أو مصطلحات بديلة مع مراعاة خصوصية اللغة العربية واللهجات المختلفة (الفصحى والعامية)
+2. تحديد المفاهيم الرئيسية والتعبير عنها بطرق مختلفة تناسب السياق العربي
+3. إضافة سياق إضافي قد يكون مفيدًا للبحث مع الحفاظ على المعنى الأصلي
+4. مراعاة الصيغ المختلفة للكلمات العربية (مثل صيغ الجمع والمفرد والمؤنث والمذكر)
+5. تضمين مصطلحات تقنية أو متخصصة إذا كان الاستعلام يتعلق بمجال محدد (مثل المصطلحات القانونية أو المالية أو التقنية)
+6. مراعاة الاختلافات اللغوية بين الدول العربية المختلفة
+7. التعامل مع الكلمات المركبة والعبارات الاصطلاحية بشكل صحيح
 
-قدم الاستعلام المحسّن كنص واحد دون تعليقات أو شروحات إضافية. حافظ على الاستعلام المحسّن باللغة العربية.
+قدم 5 استعلامات محسّنة كنص واحد مفصول بفاصلة منقوطة (؛) دون تعليقات أو شروحات إضافية. حافظ على الاستعلامات المحسّنة باللغة العربية فقط.
+
+ملاحظة: تأكد من أن الاستعلامات المحسّنة تحافظ على المعنى الأصلي للسؤال ولا تغير قصد المستخدم.
 """
     else:
         return f"""You are an intelligent assistant specialized in enhancing and expanding search queries.
@@ -230,8 +237,12 @@ Expand this query to improve search results by:
 1. Adding synonyms or alternative terms
 2. Identifying key concepts and expressing them in different ways
 3. Adding additional context that might be useful for retrieval
+4. Considering different forms of words (plurals, singulars, etc.)
+5. Including technical or specialized terminology if the query relates to a specific domain
 
-Provide the enhanced query as a single text without additional comments or explanations. Keep the enhanced query in English.
+Provide 5 enhanced queries as a single text separated by semicolons (;) without additional comments or explanations. Keep the enhanced queries in English only.
+
+Note: Ensure that the enhanced queries maintain the original meaning of the question and do not change the user's intent.
 """
 
 
@@ -269,16 +280,22 @@ def generate_query_enhancement_prompt(query: str, query_lang: str = "en") -> str
         Complete prompt string for query enhancement
     """
     if query_lang == "ar":
-        return f"""أنت مساعد ذكي متخصص في تحسين وتوسيع الاستعلامات البحثية.
+        return f"""أنت مساعد ذكي متخصص في تحسين وتوسيع الاستعلامات البحثية باللغة العربية.
 
 الاستعلام الأصلي هو: "{query}"
 
 قم بتوسيع هذا الاستعلام لتحسين نتائج البحث من خلال:
-1. إضافة مرادفات أو مصطلحات بديلة
-2. تحديد المفاهيم الرئيسية والتعبير عنها بطرق مختلفة
-3. إضافة سياق إضافي قد يكون مفيدًا للبحث
+1. إضافة مرادفات أو مصطلحات بديلة مع مراعاة خصوصية اللغة العربية واللهجات المختلفة (الفصحى والعامية)
+2. تحديد المفاهيم الرئيسية والتعبير عنها بطرق مختلفة تناسب السياق العربي
+3. إضافة سياق إضافي قد يكون مفيدًا للبحث مع الحفاظ على المعنى الأصلي
+4. مراعاة الصيغ المختلفة للكلمات العربية (مثل صيغ الجمع والمفرد والمؤنث والمذكر)
+5. تضمين مصطلحات تقنية أو متخصصة إذا كان الاستعلام يتعلق بمجال محدد (مثل المصطلحات القانونية أو المالية أو التقنية)
+6. مراعاة الاختلافات اللغوية بين الدول العربية المختلفة
+7. التعامل مع الكلمات المركبة والعبارات الاصطلاحية بشكل صحيح
 
-قدم الاستعلام المحسّن كنص واحد دون تعليقات أو شروحات إضافية. حافظ على الاستعلام المحسّن باللغة العربية.
+قدم 5 استعلامات محسّنة كنص واحد مفصول بفاصلة منقوطة (؛) دون تعليقات أو شروحات إضافية. حافظ على الاستعلامات المحسّنة باللغة العربية فقط.
+
+ملاحظة: تأكد من أن الاستعلامات المحسّنة تحافظ على المعنى الأصلي للسؤال ولا تغير قصد المستخدم.
 """
     else:
         return f"""You are an intelligent assistant specialized in enhancing and expanding search queries.
@@ -289,6 +306,10 @@ Expand this query to improve search results by:
 1. Adding synonyms or alternative terms
 2. Identifying key concepts and expressing them in different ways
 3. Adding additional context that might be useful for retrieval
+4. Considering different forms of words (plurals, singulars, etc.)
+5. Including technical or specialized terminology if the query relates to a specific domain
 
-Provide the enhanced query as a single text without additional comments or explanations. Keep the enhanced query in English.
+Provide 5 enhanced queries as a single text separated by semicolons (;) without additional comments or explanations. Keep the enhanced queries in English only.
+
+Note: Ensure that the enhanced queries maintain the original meaning of the question and do not change the user's intent.
 """

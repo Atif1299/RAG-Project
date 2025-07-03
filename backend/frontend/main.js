@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   // --- CONFIGURATION ---
-  const API_BASE_URL = 'http://34.59.200.135:8000/api/'
+  const API_BASE_URL = 'http://localhost:8000/api/'
   const USER_ID = 'user_123456'
 
   // --- DOM ELEMENT REFERENCES ---
@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function handleFileSelection(files) {
-    filesToUpload = [...filesToUpload, ...Array.from(files)]
+    filesToUpload = Array.from(files)
     renderFilePreviews()
   }
 
@@ -249,14 +249,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Handle the response
       let message = result.detail
-      
+
       // Check if all documents were duplicates (uploaded_count is 0)
-      if (result.uploaded_count === 0 && result.skipped_files && result.skipped_files.length > 0) {
+      if (
+        result.uploaded_count === 0 &&
+        result.skipped_files &&
+        result.skipped_files.length > 0
+      ) {
         // All documents were duplicates - show specific message
-        const duplicateFilesList = result.skipped_files.map(file => 
-          `• ${file.filename}: ${file.reason}`
-        ).join('\n')
-        
+        const duplicateFilesList = result.skipped_files
+          .map((file) => `• ${file.filename}: ${file.reason}`)
+          .join('\n')
+
         filePreviewArea.innerHTML = `
           <div style="text-align: center; padding: 20px;">
             <p style="color: orange; font-size: 1.1em; margin-bottom: 15px;">
@@ -271,19 +275,18 @@ document.addEventListener('DOMContentLoaded', () => {
             </p>
           </div>
         `
-        
+
         // Don't show progress bar for duplicates, just refresh documents table after a delay
         setTimeout(() => {
           switchToView('documents-view')
           renderDocumentsTable()
         }, 3000)
-        
       } else if (result.skipped_files && result.skipped_files.length > 0) {
         // Some files were uploaded, some were skipped
-        const skippedFilesList = result.skipped_files.map(file => 
-          `• ${file.filename}: ${file.reason}`
-        ).join('\n')
-        
+        const skippedFilesList = result.skipped_files
+          .map((file) => `• ${file.filename}: ${file.reason}`)
+          .join('\n')
+
         // Show mixed results in the file preview area
         filePreviewArea.innerHTML = `
           <div style="text-align: center; padding: 20px;">
@@ -299,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <pre style="text-align: left; color: orange; font-size: 0.9em; margin: 10px; padding: 10px; background: rgba(255, 165, 0, 0.1); border-radius: 5px;">${skippedFilesList}</pre>
           </div>
         `
-        
+
         // Show progress bar for the uploaded files
         if (result.uploaded_count > 0) {
           setTimeout(() => {
@@ -311,11 +314,10 @@ document.addEventListener('DOMContentLoaded', () => {
             startProgressPolling()
           }, 2000)
         }
-        
       } else {
         // All files uploaded successfully
         filePreviewArea.innerHTML = `<p style="text-align: center; color: var(--secondary-text-color);">${message}</p>`
-        
+
         // Show progress bar for processing
         setTimeout(() => {
           filePreviewArea.innerHTML = ''
@@ -326,7 +328,6 @@ document.addEventListener('DOMContentLoaded', () => {
           startProgressPolling()
         }, 1000)
       }
-
     } catch (error) {
       console.error('Upload error:', error)
       filePreviewArea.innerHTML = `<p style="text-align: center; color: red;">Error: ${error.message}</p>`
@@ -347,7 +348,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Calculate percent
         let percent = 0
         if (data.total_chunks && data.total_chunks > 0) {
-          percent = Math.floor((data.processed_chunks / data.total_chunks) * 100)
+          percent = Math.floor(
+            (data.processed_chunks / data.total_chunks) * 100
+          )
         }
         if (data.status === 'completed') percent = 100
         if (data.status === 'failed') percent = 100
@@ -357,7 +360,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ? 'Processing complete! Redirecting...'
             : data.status === 'failed'
             ? 'Processing failed.'
-            : `Processed ${data.processed_chunks || 0} of ${data.total_chunks || '?'} chunks...`
+            : `Processed ${data.processed_chunks || 0} of ${
+                data.total_chunks || '?'
+              } chunks...`
         if (data.status === 'completed') {
           setTimeout(() => {
             progressBarContainer.style.display = 'none'

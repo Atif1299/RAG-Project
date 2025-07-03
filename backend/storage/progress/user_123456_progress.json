@@ -1,0 +1,16 @@
+{
+  "user_id": "user_123456",
+  "status": "completed",
+  "start_time": "2025-07-04T04:10:09.931943",
+  "total_files": 1,
+  "processed_files": 0,
+  "current_file": "GlossaryOfDefinedTermsUsedintheRegulationsandRulesoftheCapitalMarketAuthorityAR.pdf",
+  "file_names": [
+    "GlossaryOfDefinedTermsUsedintheRegulationsandRulesoftheCapitalMarketAuthorityAR.pdf"
+  ],
+  "total_chunks": 316,
+  "processed_chunks": 279,
+  "current_chunk": 0,
+  "error": null,
+  "completion_time": "2025-07-04T04:10:11.717021"
+}

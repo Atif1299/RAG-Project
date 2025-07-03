@@ -31,8 +31,9 @@ from .prompts import (
     detect_language
 )
 
+
 # Load environment variables
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 hf_api_key = os.getenv("HF_API_TOKEN")
 openai_api_key = os.getenv("OPENAI_API_KEY", hf_api_key)
 
@@ -114,48 +115,80 @@ class QueryEnhancer:
     """Conservative query enhancement that stays within context."""
 
     def __init__(self):
-        # Very conservative synonym mapping - only common, safe expansions
+        # Expanded synonym mapping for Arabic
         self.arabic_synonyms = {
-            'من': ['مين'],  # who
-            'ماذا': ['ما', 'إيش'],  # what
-            'أين': ['وين'],  # where
-            'كيف': ['إزاي'],  # how
-            'متى': ['إمتى'],  # when
+            'من': ['مين', 'منو', 'الذي', 'التي', 'اللي', 'من هو', 'من هي'],  # who
+            'ماذا': ['ما', 'إيش', 'وش', 'شنو', 'ايه', 'ما هو', 'ما هي'],  # what
+            'أين': ['وين', 'فين', 'أي مكان', 'في أي مكان', 'مكان'],  # where
+            'كيف': ['إزاي', 'كيفية', 'بأي طريقة', 'شلون', 'بأي شكل'],  # how
+            'متى': ['إمتى', 'وقت', 'زمن', 'تاريخ', 'في أي وقت', 'أي وقت'],  # when
+            'لماذا': ['ليش', 'ليه', 'لأي سبب', 'ما السبب', 'لأي غرض'],  # why
+            'كم': ['قد إيه', 'عدد', 'مقدار', 'كمية', 'قدر'],  # how many/much
+            'هل': ['هلا', 'إذا', 'لو', 'فيما إذا', 'هل من الممكن'],  # is/are/do
+            
+            # Domain-specific terms (legal/administrative)
+            'قانون': ['تشريع', 'نظام', 'لائحة', 'مرسوم', 'قاعدة قانونية'],
+            'حكومة': ['دولة', 'سلطة', 'إدارة', 'جهة حكومية', 'هيئة رسمية'],
+            'وثيقة': ['مستند', 'ورقة', 'سجل', 'إثبات', 'شهادة'],
+            'طلب': ['استمارة', 'استدعاء', 'التماس', 'نموذج', 'تقديم'],
+            'موعد': ['تاريخ', 'ميعاد', 'وقت محدد', 'جلسة', 'لقاء'],
+            
+            # Financial terms
+            'سوق': ['بورصة', 'سوق مالي', 'تداول', 'سوق الأسهم'],
+            'استثمار': ['توظيف أموال', 'استثمار مالي', 'وضع أموال', 'تمويل'],
+            'شركة': ['مؤسسة', 'منشأة', 'كيان تجاري', 'مشروع'],
+            'مساهم': ['حامل أسهم', 'مالك حصة', 'شريك', 'مستثمر'],
+            'هيئة': ['جهة', 'مؤسسة', 'منظمة', 'سلطة'],
+            
+            # Technical terms
+            'تقنية': ['تكنولوجيا', 'تقانة', 'أسلوب فني'],
+            'نظام': ['برنامج', 'منظومة', 'آلية', 'طريقة'],
+            'بيانات': ['معلومات', 'إحصاءات', 'معطيات', 'أرقام'],
+            'تطبيق': ['برنامج', 'تنفيذ', 'استخدام', 'ممارسة'],
         }
 
         self.english_synonyms = {
-            'who': ['person'],
-            'what': ['which'],
-            'where': ['location'],
-            'how': ['method', 'way'],
-            'when': ['time'],
+            'who': ['person', 'individual', 'which person'],
+            'what': ['which', 'that', 'which thing'],
+            'where': ['location', 'place', 'which place'],
+            'how': ['method', 'way', 'process', 'means'],
+            'when': ['time', 'date', 'which time', 'period'],
+            'why': ['reason', 'purpose', 'cause'],
+            'how many': ['quantity', 'number of', 'count'],
+            'is': ['are', 'does', 'do', 'can'],
         }
 
     def enhance_query_conservative(self, query: str, lang: str) -> List[str]:
         """
-        Conservative query enhancement - only adds synonyms for question words.
+        Conservative query enhancement - adds synonyms for question words and key terms.
         Does NOT add context that might change meaning.
         """
         enhanced_queries = [query]  # Always include original
-
+    
         query_lower = query.lower().strip()
-
-        # Only enhance question words, never add assumptions about entities
+    
+        # Only enhance question words and key terms, never add assumptions about entities
         if lang == "ar":
             for word, synonyms in self.arabic_synonyms.items():
-                if word in query_lower:
+                # Use word boundary check for Arabic
+                # Improved pattern for Arabic word boundaries
+                pattern = r'(^|\s|[\.,;:!?])' + re.escape(word) + r'(\s|[\.,;:!?]|$)'
+                if re.search(pattern, query_lower):
                     for synonym in synonyms:
-                        enhanced_query = query_lower.replace(word, synonym)
+                        # Replace with proper word boundary preservation
+                        enhanced_query = re.sub(pattern, r'\1' + synonym + r'\2', query_lower)
                         if enhanced_query != query_lower:
                             enhanced_queries.append(enhanced_query)
         else:
             for word, synonyms in self.english_synonyms.items():
-                if word in query_lower:
+                # Use word boundary check for English
+                pattern = r'\b' + re.escape(word) + r'\b'
+                if re.search(pattern, query_lower):
                     for synonym in synonyms:
-                        enhanced_query = query_lower.replace(word, synonym)
+                        enhanced_query = re.sub(pattern, synonym, query_lower)
                         if enhanced_query != query_lower:
                             enhanced_queries.append(enhanced_query)
-
+    
         # Remove duplicates while preserving order
         seen = set()
         result = []
@@ -163,8 +196,8 @@ class QueryEnhancer:
             if q not in seen:
                 seen.add(q)
                 result.append(q)
-
-        return result[:3]  # Maximum 3 variations to avoid noise
+    
+        return result[:5]  # Return up to 5 variations for better coverage
 
     def classify_query_type(self, query: str) -> str:
         """Classify query type for tailored retrieval."""
@@ -328,9 +361,9 @@ class EnhancedRAGPipeline:
         base_url: str = "https://m0vtsu71q6nl17e8.us-east-1.aws.endpoints.huggingface.cloud/v1/",
         api_key: str = None,
         max_tokens: int = 1024,
-        dense_top_k: int = 15,  # Dense retrieval results
+        dense_top_k: int = 10,  # Dense retrieval results (reduced from 15)
         sparse_weight: float = 0.3,  # Weight for BM25 scores (0.0-1.0)
-        final_k: int = 7,  # Final number of documents
+        final_k: int = 5,  # Final number of documents (reduced from 7)
         embeddings_model: str = "Snowflake/snowflake-arctic-embed-l-v2.0",
         milvus_host: str = "localhost",
         milvus_port: int = 19530,
@@ -420,9 +453,8 @@ class EnhancedRAGPipeline:
 
                 # Step 2: Sparse retrieval (BM25)
                 logger.info("Performing sparse retrieval (BM25)")
-                if self.bm25_retriever is None:
-                    self.bm25_retriever = BM25Retriever(docs)
-
+                # Re-initialize BM25 retriever with the current set of dense documents
+                self.bm25_retriever = BM25Retriever(docs)
                 sparse_scores = self.bm25_retriever.get_scores(q)
 
                 # Step 3: Combine scores
@@ -475,9 +507,9 @@ class EnhancedRAGPipeline:
         for i, doc in enumerate(docs):
             # Weighted combination of different factors
             combined_score = (
-                0.6 * base_scores[i] +          # Hybrid retrieval score
-                0.2 * temporal_scores[i] +       # Temporal relevance
-                0.2 * credibility_scores[i]      # Source credibility
+                0.7 * base_scores[i] +          # Hybrid retrieval score (increased weight)
+                0.15 * temporal_scores[i] +       # Temporal relevance
+                0.15 * credibility_scores[i]      # Source credibility
             )
             final_scores.append((doc, combined_score))
 
@@ -488,7 +520,7 @@ class EnhancedRAGPipeline:
         top_docs = [doc for doc, score in final_scores[:self.final_k * 2]]  # Get more for clustering
 
         try:
-            clusters = self.document_filter.cluster_documents(top_docs, max_clusters=3)
+            clusters = self.document_filter.cluster_documents(top_docs, max_clusters=5) # Increased max_clusters
             diverse_docs = self.document_filter.select_diverse_documents(clusters, self.final_k)
             logger.info(f"Selected {len(diverse_docs)} diverse documents from {len(clusters)} clusters")
             return diverse_docs
@@ -510,7 +542,7 @@ class EnhancedRAGPipeline:
                 logger.info(f"Query type: {query_type}, Variants: {len(query_variants)}")
 
             # Step 2: Hybrid retrieval
-            docs_with_scores = await self.hybrid_retrieve_documents(query, query_variants[1:])  # Skip original
+            docs_with_scores = await self.hybrid_retrieve_documents(query, query_variants)
 
             if not docs_with_scores:
                 logger.warning("No documents retrieved")
@@ -570,7 +602,9 @@ class EnhancedRAGPipeline:
 
                 return response.choices[0].message.content
         except Exception as e:
-            logger.error(f"Error calling LLM: {str(e)}")
+            import traceback
+            error_details = traceback.format_exc()
+            logger.error(f"Error calling LLM: {str(e)}\n{error_details}")
             raise
 
     async def generate_answer(self, query: str, docs: List[Document]) -> str:
@@ -578,7 +612,12 @@ class EnhancedRAGPipeline:
         try:
             if not docs:
                 logger.info("No documents found, returning default message")
-                return "No relevant content found."
+                # Detect query language for appropriate response
+                query_lang = detect_language(query)
+                if query_lang == "ar":
+                    return "لم يتم العثور على معلومات ذات صلة بسؤالك في المستندات المتاحة. يرجى إعادة صياء السؤال أو البحث عن موضوع آخر."
+                else:
+                    return "No relevant information was found in the available documents. Please try rephrasing your question or searching for a different topic."
 
             # Detect query language
             query_lang = detect_language(query)
@@ -620,6 +659,7 @@ class EnhancedRAGPipeline:
         }
 
         try:
+            query_lang = detect_language(query)
             logger.info(f"Processing query with enhanced pipeline: {query}")
 
             # Retrieve and filter relevant documents

@@ -66,6 +66,34 @@ class ProgressService:
             self._save_progress(user_id, progress_data)
             logger.info(f"Completed processing for user {user_id} - Success: {success}")
     
+    def start_deletion_progress(self, user_id: str, filename: str, total_chunks: int) -> Dict[str, Any]:
+        """Initialize progress tracking for a document deletion job"""
+        progress_data = {
+            "user_id": user_id,
+            "status": "deleting",
+            "start_time": datetime.now().isoformat(),
+            "total_files": 1, # Deleting one file at a time
+            "processed_files": 0,
+            "current_file": filename,
+            "file_names": [filename],
+            "total_chunks": total_chunks,
+            "processed_chunks": 0,
+            "current_chunk": 0,
+            "error": None,
+            "completion_time": None
+        }
+        self._save_progress(user_id, progress_data)
+        logger.info(f"Started deletion progress tracking for user {user_id} for file {filename}")
+        return progress_data
+
+    def update_deletion_progress(self, user_id: str, processed_chunks: int):
+        """Update progress for document deletion"""
+        progress_data = self._load_progress(user_id)
+        if progress_data and progress_data.get("status") == "deleting":
+            progress_data["processed_chunks"] = processed_chunks
+            # Optionally, calculate current_chunk if needed, but processed_chunks is usually enough for a bar
+            self._save_progress(user_id, progress_data)
+
     def get_progress(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get current progress for a user"""
         return self._load_progress(user_id)
@@ -101,4 +129,4 @@ class ProgressService:
             logger.error(f"Error cleaning up progress for user {user_id}: {str(e)}")
 
 # Global instance
-progress_service = ProgressService() 
+progress_service = ProgressService()
